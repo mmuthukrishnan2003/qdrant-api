@@ -1,0 +1,39 @@
+[
+  {
+    "id": "fc8a3171-4d9d-45a3-96a6-c58c0232261a",
+    "page_id": "design-product-details-page-customization",
+    "page_title": "Product Details Page Customization",
+    "section_title": "Product Details Page Settings",
+    "subsection_title": "Return Policy Settings",
+    "content_type": "how-to",
+    "content": "Customize return policy display and settings on your product pages.",
+    "embedding_text": "Product Details Page Customization: Return Policy Settings. How do I customize return policy display and settings?",
+    "intent_questions": [
+      "How do I customize return policy settings?",
+      "how do i customize return policy settings?",
+      "Where can I configure return policy display?"
+    ],
+    "keywords": ["return policy", "product details", "customization"],
+    "page_url": "https://help.getzenbasket.com/design/product-details-page-customization",
+    "breadcrumb": "Design > Product Details Page Customization",
+    "language": "en"
+  },
+  {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "page_id": "overview-centizen-faq",
+    "page_title": "Centizen Overview FAQ",
+    "section_title": "General",
+    "subsection_title": "Getting Started",
+    "content_type": "FAQ",
+    "content": "Centizen platform provides seamless multi-channel ecommerce integrations.",
+    "embedding_text": "Centizen Overview FAQ: General Getting Started. What is Centizen platform?",
+    "intent_questions": [
+      "What is Centizen?",
+      "Tell me about Centizen platform"
+    ],
+    "keywords": ["centizen", "overview", "faq"],
+    "page_url": "https://help.getzenbasket.com/overview/centizen-faq",
+    "breadcrumb": "Overview > Centizen FAQ",
+    "language": "en"
+  }
+]

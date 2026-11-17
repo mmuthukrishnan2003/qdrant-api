@@ -7,7 +7,8 @@ const app = express();
 const PORT = process.env.PORT || 8003;
 
 // Middleware
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // Root endpoint: API Overview
 app.get("/", (req, res) => {
@@ -22,6 +23,10 @@ app.get("/", (req, res) => {
                 create: "POST /api/collections",
                 get: "GET /api/collections/:collection",
                 delete: "DELETE /api/collections/:collection",
+            },
+            import: {
+                preview: "POST /api/import/preview",
+                batchImport: "POST /api/import/json (or POST /api/collections/:collection/import)",
             },
             crud: {
                 create: "POST /api/points",

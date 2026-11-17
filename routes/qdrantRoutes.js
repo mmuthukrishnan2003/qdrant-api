@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const qdrantController = require("../controllers/qdrantController");
+const importController = require("../controllers/importController");
 
 // Health & Collections
 router.get("/health", (req, res, next) => qdrantController.healthCheck(req, res, next));
@@ -8,6 +9,11 @@ router.get("/collections", (req, res, next) => qdrantController.listCollections(
 router.post("/collections", (req, res, next) => qdrantController.createCollection(req, res, next));
 router.get("/collections/:collection", (req, res, next) => qdrantController.getCollection(req, res, next));
 router.delete("/collections/:collection", (req, res, next) => qdrantController.deleteCollection(req, res, next));
+
+// JSON Batch Import Workflow
+router.post("/import/preview", (req, res, next) => importController.previewImport(req, res, next));
+router.post("/import/json", (req, res, next) => importController.importChunks(req, res, next));
+router.post("/collections/:collection/import", (req, res, next) => importController.importChunks(req, res, next));
 
 // Direct /api/search endpoint
 router.post("/search", (req, res, next) => qdrantController.searchPoints(req, res, next));

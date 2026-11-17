@@ -5,6 +5,7 @@ const apiKey = process.env.QDRANT_API_KEY || undefined;
 
 const qdrantClient = new QdrantClient({
     url,
+    checkCompatibility: false,
     ...(apiKey ? { apiKey } : {}),
 });
 

@@ -2,9 +2,19 @@ const { v4: uuidv4 } = require("uuid");
 const qdrantClient = require("../config/qdrant");
 
 const DEFAULT_COLLECTION = process.env.DEFAULT_COLLECTION || "documents";
-const DEFAULT_VECTOR_SIZE = parseInt(process.env.DEFAULT_VECTOR_SIZE, 10) || 4;
+const DEFAULT_VECTOR_SIZE = parseInt(process.env.DEFAULT_VECTOR_SIZE, 10) || 1024;
 
 class QdrantService {
+    // Express route parameters arrive as strings. Convert integer IDs back to
+    // numbers while preserving UUID IDs as strings for the Qdrant client.
+    normalizePointId(id) {
+        if (typeof id === "string" && /^\\d+$/.test(id)) {
+            const numericId = Number(id);
+            if (Number.isSafeInteger(numericId)) return numericId;
+        }
+        return id;
+    }
+
     /**
      * Ensure a collection exists, or create it if missing
      */
@@ -13,7 +23,11 @@ class QdrantService {
             await qdrantClient.getCollection(collectionName);
             return { exists: true, message: `Collection '${collectionName}' already exists` };
         } catch (error) {
-            // If not found, create it
+            const status = error.status || error.statusCode || error.response?.status;
+            if (status !== 404) {
+                throw error;
+            }
+
             await qdrantClient.createCollection(collectionName, {
                 vectors: {
                     size: vectorSize,
@@ -117,6 +131,7 @@ class QdrantService {
             throw new Error("Point ID is required");
         }
 
+        id = this.normalizePointId(id);
         const points = await qdrantClient.retrieve(collectionName, {
             ids: [id],
             with_payload: true,
@@ -152,6 +167,7 @@ class QdrantService {
         if (!id) {
             throw new Error("Point ID is required");
         }
+        id = this.normalizePointId(id);
 
         // If vector is provided, full upsert
         if (vector && Array.isArray(vector)) {
@@ -201,6 +217,7 @@ class QdrantService {
         if (!id) {
             throw new Error("Point ID is required");
         }
+        id = this.normalizePointId(id);
 
         const response = await qdrantClient.delete(collectionName, {
             wait: true,

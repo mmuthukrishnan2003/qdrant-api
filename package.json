@@ -1,0 +1,16 @@
+{
+  "name": "qdrant-api",
+  "version": "1.0.0",
+  "description": "Qdrant Vector Database CRUD & Search API in Node.js",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "@qdrant/js-client-rest": "^1.13.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "uuid": "^10.0.0"
+  }
+}

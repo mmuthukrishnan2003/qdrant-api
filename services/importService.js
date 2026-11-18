@@ -44,6 +44,78 @@ class ImportService {
     }
 
     /**
+     * Simple robust RFC 4180 CSV parser
+     */
+    parseCsv(csvString) {
+        const lines = [];
+        let row = [""];
+        let inQuotes = false;
+
+        for (let i = 0; i < csvString.length; i++) {
+            const char = csvString[i];
+            const nextChar = csvString[i + 1];
+
+            if (char === '"' && inQuotes && nextChar === '"') {
+                row[row.length - 1] += '"';
+                i++; // skip escaped quote
+            } else if (char === '"') {
+                inQuotes = !inQuotes;
+            } else if (char === ',' && !inQuotes) {
+                row.push("");
+            } else if ((char === '\r' || char === '\n') && !inQuotes) {
+                if (char === '\r' && nextChar === '\n') i++;
+                lines.push(row);
+                row = [""];
+            } else {
+                row[row.length - 1] += char;
+            }
+        }
+        if (row.length > 1 || row[0] !== "") {
+            lines.push(row);
+        }
+
+        if (lines.length < 2) return [];
+
+        const headers = lines[0].map((h) => h.trim());
+        const records = [];
+
+        for (let r = 1; r < lines.length; r++) {
+            const values = lines[r];
+            if (values.length === 1 && values[0].trim() === "") continue;
+            const record = {};
+            headers.forEach((header, colIdx) => {
+                record[header] = values[colIdx] !== undefined ? values[colIdx].trim() : "";
+            });
+            records.push(record);
+        }
+
+        return records;
+    }
+
+    /**
+     * Convert array of objects to CSV string
+     */
+    formatCsv(records, fields = null) {
+        if (!records || records.length === 0) return "";
+
+        const headers = fields || Object.keys(records[0]);
+        const escapeCsvValue = (val) => {
+            if (val === null || val === undefined) return "";
+            if (typeof val === "object") val = JSON.stringify(val);
+            const str = String(val);
+            if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
+                return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
+        };
+
+        const headerLine = headers.map(escapeCsvValue).join(",");
+        const rowLines = records.map((rec) => headers.map((h) => escapeCsvValue(rec[h])).join(","));
+
+        return [headerLine, ...rowLines].join("\n");
+    }
+
+    /**
      * Resolve and read JSON file from given path or standard paths
      */
     readJsonChunksFromFile(filePath) {
@@ -105,42 +177,39 @@ class ImportService {
                 seenIds.set(pointId, index);
             }
 
-            // Embedding text prioritization
             const embeddingText =
                 (chunk.embedding_text && typeof chunk.embedding_text === "string" && chunk.embedding_text.trim()) ||
                 (chunk.content && typeof chunk.content === "string" && chunk.content.trim()) ||
+                (chunk.text && typeof chunk.text === "string" && chunk.text.trim()) ||
                 (chunk.page_title ? `${chunk.page_title}: ${chunk.content || ""}` : "");
 
             if (!embeddingText) {
                 errors.push({
                     index,
                     id: pointId,
-                    reason: "Missing both 'embedding_text' and 'content' for generating vector",
+                    reason: "Missing 'embedding_text', 'content', or 'text' for generating vector",
                 });
                 return;
             }
 
-            // Stats tracking
             const cType = chunk.content_type || chunk.type || "Uncategorized";
             contentTypesCount[cType] = (contentTypesCount[cType] || 0) + 1;
             if (chunk.page_url) pagesSet.add(chunk.page_url);
             else if (chunk.page_title) pagesSet.add(chunk.page_title);
 
-            // Clean intent questions and keywords
             const intentQuestions = cleanQuestions && chunk.intent_questions
                 ? this.cleanIntentQuestions(chunk.intent_questions)
                 : chunk.intent_questions || [];
 
             const keywords = chunk.keywords ? this.cleanKeywords(chunk.keywords) : [];
 
-            // Build clean payload preserving all source metadata
             const payload = {
                 page_id: chunk.page_id || chunk.pageId || "",
-                page_title: chunk.page_title || chunk.pageTitle || "",
+                page_title: chunk.page_title || chunk.pageTitle || chunk.title || "",
                 section_title: chunk.section_title || chunk.sectionTitle || "",
                 subsection_title: chunk.subsection_title || chunk.subsectionTitle || "",
                 content_type: cType,
-                content: chunk.content || "",
+                content: chunk.content || chunk.text || "",
                 page_url: chunk.page_url || chunk.url || "",
                 language: chunk.language || "en",
                 breadcrumb: chunk.breadcrumb || "",
@@ -149,11 +218,10 @@ class ImportService {
                 ...chunk.metadata,
             };
 
-            // Preserve any custom top-level fields not already mapped
             const standardKeys = new Set([
                 "id", "_id", "vector", "embedding", "embedding_text", "page_id", "page_title",
                 "section_title", "subsection_title", "content_type", "content", "page_url",
-                "language", "breadcrumb", "intent_questions", "keywords", "metadata",
+                "language", "breadcrumb", "intent_questions", "keywords", "metadata", "text", "title",
             ]);
 
             for (const [key, value] of Object.entries(chunk)) {
@@ -187,10 +255,6 @@ class ImportService {
 
     /**
      * Run batch import workflow
-     * 1. Validate chunks
-     * 2. Generate embeddings in batches of maxBatchSize (32)
-     * 3. Insert points into Qdrant
-     * 4. Return detailed report
      */
     async importChunks({
         collectionName = process.env.DEFAULT_COLLECTION || "ai_centizen",
@@ -213,7 +277,6 @@ class ImportService {
             throw new Error("No chunk records found in the provided input or file");
         }
 
-        // 1. Validation & Preparation
         const { validChunks, duplicateIds, errors, stats } = this.validateAndPrepareChunks(rawChunks, {
             cleanQuestions,
         });
@@ -222,12 +285,10 @@ class ImportService {
             throw new Error("Validation failed: No valid chunks could be prepared for embedding/insertion");
         }
 
-        // 2. Ensure target Qdrant collection exists (1024 dims)
         const vectorSize = parseInt(process.env.DEFAULT_VECTOR_SIZE, 10) || 1024;
         const distance = process.env.DEFAULT_VECTOR_DISTANCE || "Cosine";
         await qdrantService.ensureCollection(collectionName, vectorSize, distance);
 
-        // 3. Batch Embedding Generation (max 32 per batch)
         const totalBatches = Math.ceil(validChunks.length / batchSize);
         const batchReports = [];
         const readyPoints = [];
@@ -238,17 +299,12 @@ class ImportService {
             const batchSlice = validChunks.slice(startIdx, endIdx);
             const batchStartTime = Date.now();
 
-            console.log(
-                `[ImportService] Processing batch ${bIndex + 1}/${totalBatches} (${batchSlice.length} chunks)...`
-            );
-
-            // Separate chunks that already have vectors vs need embedding
             const textsToEmbed = [];
             const textToSliceIdx = [];
 
             batchSlice.forEach((item, idx) => {
                 if (item.originalVector && item.originalVector.length === vectorSize) {
-                    // Already has valid vector
+                    // Vector present
                 } else {
                     textsToEmbed.push(item.embeddingText);
                     textToSliceIdx.push(idx);
@@ -268,8 +324,7 @@ class ImportService {
                 payload: item.payload,
             }));
 
-            // Upsert batch into Qdrant
-            const qdrantRes = await qdrantService.createPointsBatch(collectionName, batchPoints);
+            const qdrantRes = await qdrantService.upsertPoints(collectionName, batchPoints);
             readyPoints.push(...batchPoints);
 
             const batchDuration = Date.now() - batchStartTime;
@@ -283,7 +338,6 @@ class ImportService {
             });
         }
 
-        // 4. Retrieve Collection Status After Insertion
         let postImportCollectionInfo = null;
         try {
             postImportCollectionInfo = await qdrantService.getCollection(collectionName);
@@ -293,7 +347,6 @@ class ImportService {
 
         const totalDurationMs = Date.now() - startTime;
 
-        // 5. Build Final Comprehensive Report
         return {
             success: true,
             collection: collectionName,
@@ -322,6 +375,85 @@ class ImportService {
                   }
                 : null,
         };
+    }
+
+    /**
+     * Import CSV dataset
+     */
+    async importCsv({ collectionName, csvContent, filePath, batchSize = 32, cleanQuestions = true }) {
+        let content = csvContent;
+        let sourceFile = null;
+
+        if (!content && filePath) {
+            const p = path.resolve(filePath);
+            if (!fs.existsSync(p)) throw new Error(`CSV file not found: ${filePath}`);
+            content = fs.readFileSync(p, "utf-8");
+            sourceFile = p;
+        }
+
+        if (!content) throw new Error("Either 'csvContent' string or 'filePath' is required");
+
+        const records = this.parseCsv(content);
+        if (records.length === 0) throw new Error("CSV parsed into 0 records");
+
+        const report = await this.importChunks({
+            collectionName,
+            chunks: records,
+            batchSize,
+            cleanQuestions,
+        });
+
+        report.sourceFile = sourceFile || "direct_csv_upload";
+        return report;
+    }
+
+    /**
+     * Export all points from a collection as JSON
+     */
+    async exportCollectionJson(collectionName = process.env.DEFAULT_COLLECTION || "ai_centizen", { limit = 1000, withVector = false } = {}) {
+        const scrollRes = await qdrantService.scrollPoints(collectionName, {
+            limit: parseInt(limit, 10) || 1000,
+            with_payload: true,
+            with_vector: withVector,
+        });
+
+        const points = scrollRes.points || [];
+        return {
+            collection: collectionName,
+            totalExported: points.length,
+            withVector,
+            points,
+        };
+    }
+
+    /**
+     * Export all points from a collection as CSV
+     */
+    async exportCollectionCsv(collectionName = process.env.DEFAULT_COLLECTION || "ai_centizen", { limit = 1000 } = {}) {
+        const { points } = await this.exportCollectionJson(collectionName, { limit, withVector: false });
+
+        if (points.length === 0) {
+            return "id,page_title,content_type,content,page_url";
+        }
+
+        const flatRows = points.map((p) => {
+            const pl = p.payload || {};
+            return {
+                id: p.id,
+                page_title: pl.page_title || "",
+                section_title: pl.section_title || "",
+                subsection_title: pl.subsection_title || "",
+                content_type: pl.content_type || "",
+                content: pl.content || "",
+                page_url: pl.page_url || "",
+                language: pl.language || "en",
+                breadcrumb: pl.breadcrumb || "",
+                intent_questions: Array.isArray(pl.intent_questions) ? pl.intent_questions.join(" | ") : "",
+                keywords: Array.isArray(pl.keywords) ? pl.keywords.join(", ") : "",
+            };
+        });
+
+        return this.formatCsv(flatRows);
     }
 }
 

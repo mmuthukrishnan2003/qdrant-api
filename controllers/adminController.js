@@ -76,7 +76,7 @@ class AdminController {
             const metrics = auditLogService.getMetrics();
 
             res.json({
-                service: "Qdrant Vector CRUD & Advanced AI API",
+                service: process.env.APP_NAME || "Qdrant Vector DB & AI",
                 version: "2.0.0",
                 environment: process.env.NODE_ENV || "production",
                 platform: process.platform,
@@ -204,6 +204,7 @@ class AdminController {
         try {
             res.json({
                 success: true,
+                appName: process.env.APP_NAME || "Qdrant Vector DB & AI",
                 environment: process.env.NODE_ENV || "production",
                 localServicePorts: {
                     nodeApiPort: process.env.PORT || 8003,

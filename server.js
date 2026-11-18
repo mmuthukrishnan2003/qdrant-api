@@ -5,6 +5,7 @@ const auditLogService = require("./services/auditLogService");
 
 const app = express();
 const PORT = process.env.PORT || 8003;
+const APP_NAME = process.env.APP_NAME || "Qdrant Vector DB & AI";
 
 // Middleware
 app.use(express.json({ limit: "50mb" }));
@@ -23,7 +24,7 @@ app.use((req, res, next) => {
 // Root endpoint: Complete API Catalog Overview
 app.get("/", (req, res) => {
     res.json({
-        name: "Advanced Qdrant Vector DB & AI Knowledge Base API",
+        name: APP_NAME,
         version: "2.0.0",
         port: PORT,
         endpoints: {
@@ -119,7 +120,7 @@ app.use((err, req, res, next) => {
 if (require.main === module) {
     app.listen(PORT, () => {
         console.log(`===============================================`);
-        console.log(`🚀 Advanced Qdrant Vector & AI API on port ${PORT}`);
+        console.log(`🚀 ${APP_NAME} running on port ${PORT}`);
         console.log(`   URL: http://127.0.0.1:${PORT}`);
         console.log(`   Qdrant target: ${process.env.QDRANT_URL || "http://127.0.0.1:6333"}`);
         console.log(`   Embedding target: ${process.env.EMBEDDING_API_URL || "http://127.0.0.1:8002"}`);

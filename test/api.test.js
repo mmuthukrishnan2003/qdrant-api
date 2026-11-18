@@ -70,7 +70,7 @@ async function runDirectTests() {
 
     const { req: sReq, res: sRes } = mockReqRes();
     await adminController.status(sReq, sRes, (err) => { throw err; });
-    assert.strictEqual(sRes.getData().service, "Qdrant Vector CRUD & Advanced AI API");
+    assert.strictEqual(sRes.getData().service, "Qdrant Vector DB & AI");
     console.log("  -> [PASS] adminController.status verified service runtime info!");
 
     // 2. Category 5: CSV Parsing & Formatting

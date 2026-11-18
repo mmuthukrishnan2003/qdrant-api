@@ -1,4 +1,4 @@
-# Advanced Qdrant Vector DB & AI Knowledge Base API
+# Qdrant Vector DB & AI
 
 A production-grade, local-first Vector Database CRUD, Hybrid Search, and RAG API built with Node.js and Express.
 

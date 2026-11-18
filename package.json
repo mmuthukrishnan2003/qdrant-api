@@ -1,7 +1,7 @@
 {
   "name": "qdrant-api",
   "version": "1.0.0",
-  "description": "Qdrant Vector Database CRUD & Search API in Node.js",
+  "description": "Qdrant Vector DB & AI",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
